@@ -22,7 +22,7 @@ const inter = Inter({
   variable: "--font-inter",
 });
 
-const API = "http://localhost:8000";
+const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 type Fuente = { archivo: string; pagina: number };
 type Msg = {
