@@ -49,15 +49,19 @@ export default function Chat() {
   const [imgAviso, setImgAviso] = useState(false);
   const [menuAdjuntos, setMenuAdjuntos] = useState(false);
   const [selectedHistory, setSelectedHistory] = useState<number | null>(null);
-  const [histOpen, setHistOpen] = useState(false); // panel historial en celular
+  const [histOpen, setHistOpen] = useState(false);
+  const [docError, setDocError] = useState(""); // aviso bonito en vez de alert()
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const menuAbiertoRef = useRef(false); // para el listener sin re-registrar (I2)
 
   useEffect(() => {
+    let mounted = true;
     supabase.auth.getSession().then(({ data }) => {
+      if (!mounted) return;
       const session = data.session;
       if (!session) {
         router.replace("/");
@@ -73,7 +77,9 @@ export default function Chat() {
       try {
         car = sessionStorage.getItem("aura_carrera") || "";
         cur = sessionStorage.getItem("aura_curso") || "";
-      } catch { }
+      } catch (e) {
+        console.error(e);
+      }
       if (!cur) {
         router.replace("/curso");
         return;
@@ -83,21 +89,29 @@ export default function Chat() {
       setLista(true);
       setTimeout(() => inputRef.current?.focus(), 100);
     });
+    return () => {
+      mounted = false;
+    };
   }, [router]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [msgs, loading]);
 
+  // ARREGLO I2: el listener se registra UNA vez; usa la ref para saber si el menú está abierto.
+  useEffect(() => {
+    menuAbiertoRef.current = menuAdjuntos;
+  }, [menuAdjuntos]);
+
   useEffect(() => {
     const onClickOutside = (event: MouseEvent) => {
-      if (menuAdjuntos && menuRef.current && !menuRef.current.contains(event.target as Node)) {
+      if (menuAbiertoRef.current && menuRef.current && !menuRef.current.contains(event.target as Node)) {
         setMenuAdjuntos(false);
       }
     };
     document.addEventListener("mousedown", onClickOutside);
     return () => document.removeEventListener("mousedown", onClickOutside);
-  }, [menuAdjuntos]);
+  }, []);
 
   const historyItems = useMemo(() => {
     const items: Array<{ pregunta: string; msgIndex: number }> = [];
@@ -112,10 +126,17 @@ export default function Chat() {
   const scrollToHistory = (msgIndex: number) => {
     const element = document.getElementById(`message-${msgIndex}`);
     if (element) {
-      element.scrollIntoView({ behavior: "smooth", block: "center" });
+      requestAnimationFrame(() => {
+        element.scrollIntoView({ behavior: "smooth", block: "center" });
+      });
       setSelectedHistory(msgIndex);
     }
-    setHistOpen(false); // cerrar panel en celular al elegir
+    setHistOpen(false);
+  };
+
+  const mostrarDocError = (msg: string) => {
+    setDocError(msg);
+    setTimeout(() => setDocError(""), 3500);
   };
 
   const onElegirArchivo = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -126,6 +147,7 @@ export default function Chat() {
     setSubiendo(true);
     setDocNombre("");
     setDocTexto("");
+    setDocError("");
     try {
       const fd = new FormData();
       fd.append("archivo", file);
@@ -135,10 +157,11 @@ export default function Chat() {
         setDocTexto(data.texto);
         setDocNombre(data.nombre || file.name);
       } else {
-        alert(data.error || "No pude leer el archivo.");
+        mostrarDocError(data.error || "No pude leer el archivo.");
       }
-    } catch {
-      alert("No pude conectar con el servidor para leer el archivo.");
+    } catch (e) {
+      console.error(e);
+      mostrarDocError("No pude conectar con el servidor para leer el archivo.");
     } finally {
       setSubiendo(false);
     }
@@ -192,12 +215,13 @@ export default function Chat() {
         ...m,
         { rol: "aura", texto: data.respuesta || "Sin respuesta.", fuentes: data.fuentes || [] },
       ]);
-    } catch {
+    } catch (e) {
+      console.error(e);
       setMsgs((m) => [
         ...m,
         {
           rol: "aura",
-          texto: `No pude conectar con el servidor. ¿Está prendido el backend en ${API}?`,
+          texto: "No pude conectar con el servidor. Si es la primera consulta en un rato, puede tardar unos segundos en despertar. Intenta de nuevo. 🙏",
           error: true,
         },
       ]);
@@ -242,10 +266,8 @@ export default function Chat() {
     <main className={`aura-chat ${grotesk.variable} ${inter.variable} ${histOpen ? "hist-open" : ""}`}>
       <div className="bg-glow" />
 
-      {/* Fondo oscuro detrás del panel en celular */}
       <div className="hist-backdrop" onClick={() => setHistOpen(false)} />
 
-      {/* PANEL HISTORIAL */}
       <aside className="history-panel">
         <div className="hp-top">
           <button className="hp-new" onClick={nuevoChat}>
@@ -281,15 +303,14 @@ export default function Chat() {
       <div className="chat-shell">
         <header className="bar-top">
           <div className="bar-left">
-            {/* Botón hamburguesa (solo celular) */}
             <button
               className="hamburger"
               onClick={() => setHistOpen((v) => !v)}
-              aria-label="Historial"
+              aria-label="Abrir historial"
             >
               <span /><span /><span />
             </button>
-            <button className="brand" onClick={cambiarCurso}>
+            <button className="brand" onClick={cambiarCurso} aria-label="Cambiar de curso">
               <span className="mini-radar">
                 <span className="mini-ring" />
                 <span className="mini-core" />
@@ -307,7 +328,7 @@ export default function Chat() {
             {vacio && (
               <div className="empty">
                 <h2 className="greeting">
-                  Hola{nombre ? `, ${nombre}` : ""} <span>👋</span>
+                  Hola{nombre ? `, ${nombre}` : ""} <span role="img" aria-label="saludo">👋</span>
                 </h2>
                 <p className="sub">
                   Pregúntame lo que quieras de <b>{curso}</b>. Respondo solo con su material.
@@ -335,7 +356,11 @@ export default function Chat() {
                         remarkPlugins={[remarkMath]}
                         rehypePlugins={[rehypeKatex]}
                         components={{
-                          code({ inline, className, children, ...props }: any) {
+                          code({ inline, className, children, ...props }: {
+                            inline?: boolean;
+                            className?: string;
+                            children?: React.ReactNode;
+                          }) {
                             const match = /language-(\w+)/.exec(className || "");
                             if (!inline && match) {
                               return (
@@ -396,12 +421,15 @@ export default function Chat() {
         </div>
 
         <div className="composer">
+          {/* ARREGLO I1: aviso bonito en vez de alert() */}
+          {docError && <p className="doc-error">{docError}</p>}
+
           <div className="bar">
             <div className={`attach-group ${menuAdjuntos ? "open" : ""}`} ref={menuRef}>
               <button
                 className="plus-btn"
                 onClick={() => setMenuAdjuntos(!menuAdjuntos)}
-                title="Adjuntar"
+                aria-label="Adjuntar archivo"
               >
                 +
               </button>
@@ -411,7 +439,7 @@ export default function Chat() {
                   <div className="adjunto-chip">
                     <span className="ac-ico">📄</span>
                     <span className="ac-name">{docNombre}</span>
-                    <button className="ac-x" onClick={quitarAdjunto}>✕</button>
+                    <button className="ac-x" onClick={quitarAdjunto} aria-label="Quitar archivo">✕</button>
                   </div>
                 )}
                 {subiendo && <div className="adjunto-chip leyendo">📄 Leyendo…</div>}
@@ -512,7 +540,6 @@ export default function Chat() {
         }
         .aura-chat .hist-backdrop { display: none; }
 
-        /* ---------- PANEL HISTORIAL ---------- */
         .aura-chat .history-panel {
           position: relative; z-index: 2;
           display: flex; flex-direction: column;
@@ -567,7 +594,6 @@ export default function Chat() {
           overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
         }
 
-        /* ---------- CHAT ---------- */
         .aura-chat .chat-shell { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
         .aura-chat .bar-top {
           position: relative; z-index: 2;
@@ -576,7 +602,7 @@ export default function Chat() {
         }
         .aura-chat .bar-left { display: flex; align-items: center; gap: 12px; }
         .aura-chat .hamburger {
-          display: none; /* oculto en escritorio */
+          display: none;
           flex-direction: column; gap: 4px; width: 34px; height: 34px;
           border: 1px solid var(--line); border-radius: 9px; background: none;
           cursor: pointer; padding: 0; align-items: center; justify-content: center;
@@ -697,6 +723,12 @@ export default function Chat() {
           border-top: 1px solid var(--line); background: rgba(7, 7, 8, 0.6);
           backdrop-filter: blur(10px);
         }
+        .aura-chat .doc-error {
+          max-width: 760px; margin: 0 auto 10px; text-align: center;
+          font-size: 13px; color: #ffb3b3;
+          background: rgba(255, 59, 59, 0.08); border: 1px solid rgba(255, 59, 59, 0.3);
+          border-radius: 10px; padding: 9px 14px; animation: chat-fade 0.3s ease both;
+        }
         .aura-chat .adjunto-chip {
           display: inline-flex; align-items: center; gap: 8px; margin-bottom: 8px;
           background: rgba(255, 59, 59, 0.08); border: 1px solid rgba(255, 59, 59, 0.3);
@@ -796,7 +828,6 @@ export default function Chat() {
           .aura-chat * { animation: none !important; transition: none !important; }
         }
 
-        /* ---------- CELULAR: historial deslizante ---------- */
         @media (max-width: 1040px) {
           .aura-chat { grid-template-columns: 1fr; }
           .aura-chat .hamburger { display: flex; }
