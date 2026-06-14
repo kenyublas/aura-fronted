@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Space_Grotesk, Inter } from "next/font/google";
 import { supabase } from "@/lib/supabase";
@@ -20,29 +20,61 @@ export default function Home() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [checking, setChecking] = useState(true);
+  const [aviso, setAviso] = useState("");
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Si ya hay sesion activa, lo mandamos directo a la seleccion
+  // Si ya hay sesion activa, lo mandamos directo a la seleccion.
+  // ARREGLO I7: bandera "mounted" para no actualizar estado si el componente se desmonta.
   useEffect(() => {
+    let mounted = true;
     supabase.auth.getSession().then(({ data }) => {
+      if (!mounted) return;
       if (data.session) {
         router.replace("/carrera");
       } else {
         setChecking(false);
       }
     });
+    return () => {
+      mounted = false;
+    };
   }, [router]);
 
+  // Limpia el timeout si el componente se desmonta
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, []);
+
   const entrarConGoogle = async () => {
+    setAviso("");
     setLoading(true);
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: `${window.location.origin}/carrera`,
-      },
-    });
-    if (error) {
+
+    // ARREGLO C1: timeout de seguridad. Si en 12s no redirigió (algo falló),
+    // reseteamos el botón para que no quede colgado para siempre.
+    timeoutRef.current = setTimeout(() => {
       setLoading(false);
-      alert("No se pudo iniciar sesion. Intenta de nuevo.");
+      setAviso("La conexión está tardando. Revisa tu internet e intenta de nuevo.");
+    }, 12000);
+
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: `${window.location.origin}/carrera`,
+        },
+      });
+      if (error) {
+        if (timeoutRef.current) clearTimeout(timeoutRef.current);
+        setLoading(false);
+        setAviso("No se pudo iniciar sesión. Intenta de nuevo.");
+      }
+      // Si no hay error, Google redirige y salimos de la página (el timeout se cancela solo al desmontar).
+    } catch {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      setLoading(false);
+      setAviso("Ocurrió un problema al conectar. Intenta de nuevo.");
     }
   };
 
@@ -67,7 +99,7 @@ export default function Home() {
 
         <h1 className="wordmark">AURA</h1>
         <p className="tagline">
-          <span className="dot" /> Asistente Universitario para el Refuerzo Académico · Peru
+          <span className="dot" /> Asistente Universitario para el Refuerzo Académico
         </p>
 
         {!checking && (
@@ -99,6 +131,9 @@ export default function Home() {
                 </>
               )}
             </button>
+
+            {/* ARREGLO I1: aviso inline bonito en vez de alert() feo */}
+            {aviso && <p className="aviso">{aviso}</p>}
 
             <p className="hint">
               <span className="hint-dot">●</span>
@@ -283,6 +318,17 @@ export default function Home() {
         .aura-root .google-btn:active:not(:disabled) { transform: scale(0.98); }
         .aura-root .google-btn:disabled { opacity: 0.7; cursor: default; }
         .aura-root .g-icon { flex: none; }
+
+        .aura-root .aviso {
+          margin-top: 16px;
+          font-size: 13px;
+          color: #ffb3b3;
+          background: rgba(255, 59, 59, 0.08);
+          border: 1px solid rgba(255, 59, 59, 0.3);
+          border-radius: 10px;
+          padding: 10px 14px;
+          animation: aura-rise 0.4s ease both;
+        }
 
         .aura-root .hint {
           margin-top: 20px;
