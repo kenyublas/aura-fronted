@@ -22,9 +22,8 @@ export default function Home() {
   const [checking, setChecking] = useState(true);
   const [aviso, setAviso] = useState("");
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  // Si ya hay sesion activa, lo mandamos directo a la seleccion.
-  // ARREGLO I7: bandera "mounted" para no actualizar estado si el componente se desmonta.
   useEffect(() => {
     let mounted = true;
     supabase.auth.getSession().then(({ data }) => {
@@ -40,19 +39,189 @@ export default function Home() {
     };
   }, [router]);
 
-  // Limpia el timeout si el componente se desmonta
   useEffect(() => {
     return () => {
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
     };
   }, []);
 
+  // Núcleo de partículas interactivo (Canvas)
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const W = canvas.width;
+    const H = canvas.height;
+    const cx = W / 2;
+    const cy = H / 2;
+
+    // Menos partículas en celular para que vaya fluido
+    const esMovil = window.innerWidth < 640;
+    const N = esMovil ? 600 : 1300;
+    const interactivo = !esMovil; // mouse solo en PC
+
+    const mouse = { x: -999, y: -999, active: false };
+
+    const onMove = (e: MouseEvent) => {
+      const rect = canvas.getBoundingClientRect();
+      mouse.x = (e.clientX - rect.left) * (W / rect.width);
+      mouse.y = (e.clientY - rect.top) * (H / rect.height);
+      mouse.active = true;
+    };
+    const onLeave = () => {
+      mouse.active = false;
+      mouse.x = -999;
+      mouse.y = -999;
+    };
+    if (interactivo) {
+      canvas.addEventListener("mousemove", onMove);
+      canvas.addEventListener("mouseleave", onLeave);
+    }
+
+    const noise = (x: number, y: number, t: number) =>
+      Math.sin(x * 0.9 + t) * Math.cos(y * 0.8 - t * 0.9) +
+      Math.sin((x + y) * 0.5 + t * 1.2) * 0.5;
+
+    type P = {
+      rr: number;
+      baseR: number;
+      a: number;
+      seed: number;
+      size: number;
+      ox: number;
+      oy: number;
+      vx: number;
+      vy: number;
+    };
+    const particles: P[] = [];
+    for (let i = 0; i < N; i++) {
+      const petal = Math.floor(Math.random() * 5);
+      const pAng = (petal / 5) * Math.PI * 2;
+      const rr = Math.pow(Math.random(), 0.5);
+      const spread = Math.sin(rr * Math.PI) * 0.7;
+      const a = pAng + (Math.random() - 0.5) * spread * 1.6;
+      particles.push({
+        rr,
+        baseR: rr * 120,
+        a,
+        seed: Math.random() * 100,
+        size: (1.5 - rr * 0.85) * (0.6 + Math.random() * 0.6),
+        ox: 0,
+        oy: 0,
+        vx: 0,
+        vy: 0,
+      });
+    }
+
+    const colorFor = (rr: number, alpha: number) => {
+      if (rr < 0.33) {
+        return `rgba(255,${Math.round(70 + rr * 60)},${Math.round(70 + rr * 40)},${alpha})`;
+      } else if (rr < 0.66) {
+        const k = (rr - 0.33) / 0.33;
+        return `rgba(${Math.round(200 - k * 80)},${Math.round(80 + k * 20)},${Math.round(180 + k * 40)},${alpha})`;
+      } else {
+        return `rgba(120,160,255,${alpha})`;
+      }
+    };
+
+    let t = 0;
+    let raf = 0;
+    const draw = () => {
+      ctx.clearRect(0, 0, W, H);
+      t += 0.01;
+      const breathe = 1 + Math.sin(t * 1.6) * 0.05;
+
+      const rendered: { x: number; y: number; rr: number; size: number; alpha: number }[] = [];
+      for (let i = 0; i < particles.length; i++) {
+        const p = particles[i];
+        const flow = noise(Math.cos(p.a) * p.rr * 1.4, Math.sin(p.a) * p.rr * 1.4, t + p.seed * 0.1);
+        const aF = p.a + flow * 0.3 + t * 0.1;
+        const rF = (p.baseR + flow * 16) * breathe;
+        const tx = cx + Math.cos(aF) * rF;
+        const ty = cy + Math.sin(aF) * rF * 0.9;
+
+        if (interactivo && mouse.active) {
+          const dx = tx - mouse.x;
+          const dy = ty - mouse.y;
+          const d2 = dx * dx + dy * dy;
+          if (d2 < 6400) {
+            const d = Math.sqrt(d2) || 1;
+            const force = ((80 - d) / 80) * 14;
+            p.vx += (dx / d) * force * 0.15;
+            p.vy += (dy / d) * force * 0.15;
+          }
+        }
+        p.vx *= 0.88;
+        p.vy *= 0.88;
+        p.ox += p.vx;
+        p.oy += p.vy;
+        p.ox *= 0.9;
+        p.oy *= 0.9;
+
+        const x = tx + p.ox;
+        const y = ty + p.oy;
+        let alpha = 1 - p.rr * 0.75;
+        if (alpha < 0.06) alpha = 0.06;
+        rendered.push({ x, y, rr: p.rr, size: p.size, alpha });
+      }
+
+      for (let k = 0; k < rendered.length; k += 7) {
+        const r1 = rendered[k];
+        const r2 = rendered[(k + 3) % rendered.length];
+        const dx = r1.x - r2.x;
+        const dy = r1.y - r2.y;
+        if (dx * dx + dy * dy < 900 && r1.rr > 0.5) {
+          ctx.strokeStyle = `rgba(150,170,255,${r1.alpha * 0.12})`;
+          ctx.lineWidth = 0.4;
+          ctx.beginPath();
+          ctx.moveTo(r1.x, r1.y);
+          ctx.lineTo(r2.x, r2.y);
+          ctx.stroke();
+        }
+      }
+
+      ctx.globalCompositeOperation = "lighter";
+      for (let k = 0; k < rendered.length; k++) {
+        const r = rendered[k];
+        ctx.fillStyle = colorFor(r.rr, r.alpha);
+        ctx.beginPath();
+        ctx.arc(r.x, r.y, r.size, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalCompositeOperation = "source-over";
+
+      const coreR = 10 * breathe;
+      const grad = ctx.createRadialGradient(cx - 2, cy - 2, 1, cx, cy, coreR * 3);
+      grad.addColorStop(0, "rgba(255,190,190,1)");
+      grad.addColorStop(0.35, "rgba(255,60,60,0.95)");
+      grad.addColorStop(1, "rgba(255,40,40,0)");
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(cx, cy, coreR * 3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#ff5a5a";
+      ctx.beginPath();
+      ctx.arc(cx, cy, coreR, 0, Math.PI * 2);
+      ctx.fill();
+
+      raf = requestAnimationFrame(draw);
+    };
+    draw();
+
+    return () => {
+      cancelAnimationFrame(raf);
+      if (interactivo) {
+        canvas.removeEventListener("mousemove", onMove);
+        canvas.removeEventListener("mouseleave", onLeave);
+      }
+    };
+  }, []);
+
   const entrarConGoogle = async () => {
     setAviso("");
     setLoading(true);
-
-    // ARREGLO C1: timeout de seguridad. Si en 12s no redirigió (algo falló),
-    // reseteamos el botón para que no quede colgado para siempre.
     timeoutRef.current = setTimeout(() => {
       setLoading(false);
       setAviso("La conexión está tardando. Revisa tu internet e intenta de nuevo.");
@@ -70,7 +239,6 @@ export default function Home() {
         setLoading(false);
         setAviso("No se pudo iniciar sesión. Intenta de nuevo.");
       }
-      // Si no hay error, Google redirige y salimos de la página (el timeout se cancela solo al desmontar).
     } catch {
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
       setLoading(false);
@@ -85,17 +253,7 @@ export default function Home() {
       <div className="vignette" />
 
       <div className="stage">
-        <div className="radar" aria-hidden="true">
-          <span className="ring r5" />
-          <span className="ring r4" />
-          <span className="ring r3" />
-          <span className="ring r2" />
-          <span className="ring r1" />
-          <span className="pulse p1" />
-          <span className="pulse p2" />
-          <span className="pulse p3" />
-          <span className="core" />
-        </div>
+        <canvas ref={canvasRef} width={300} height={260} className="core-canvas" aria-hidden="true" />
 
         <h1 className="wordmark">AURA</h1>
         <p className="tagline">
@@ -132,7 +290,6 @@ export default function Home() {
               )}
             </button>
 
-            {/* ARREGLO I1: aviso inline bonito en vez de alert() feo */}
             {aviso && <p className="aviso">{aviso}</p>}
 
             <p className="hint">
@@ -204,52 +361,12 @@ export default function Home() {
           text-align: center;
         }
 
-        .aura-root .radar {
-          position: relative;
-          width: 184px;
-          height: 184px;
-          margin-bottom: 30px;
-          display: grid;
-          place-items: center;
+        .aura-root .core-canvas {
+          width: 300px;
+          height: 260px;
+          max-width: 90vw;
+          margin-bottom: 6px;
           animation: aura-rise 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) both;
-        }
-        .aura-root .radar .ring {
-          position: absolute;
-          border-radius: 50%;
-          border: 1px solid rgba(255, 59, 59, 0.32);
-          top: 50%;
-          left: 50%;
-          transform: translate(-50%, -50%);
-        }
-        .aura-root .radar .r1 { width: 34px; height: 34px; border-color: rgba(255, 59, 59, 0.7); }
-        .aura-root .radar .r2 { width: 72px; height: 72px; border-color: rgba(255, 59, 59, 0.5); }
-        .aura-root .radar .r3 { width: 114px; height: 114px; border-color: rgba(255, 59, 59, 0.34); }
-        .aura-root .radar .r4 { width: 158px; height: 158px; border-color: rgba(255, 59, 59, 0.2); }
-        .aura-root .radar .r5 { width: 200px; height: 200px; border-color: rgba(255, 59, 59, 0.1); }
-
-        .aura-root .radar .pulse {
-          position: absolute;
-          top: 50%;
-          left: 50%;
-          width: 34px;
-          height: 34px;
-          border-radius: 50%;
-          border: 1px solid var(--red);
-          transform: translate(-50%, -50%) scale(1);
-          animation: aura-sonar 3.4s ease-out infinite;
-        }
-        .aura-root .radar .p2 { animation-delay: 1.13s; }
-        .aura-root .radar .p3 { animation-delay: 2.26s; }
-
-        .aura-root .radar .core {
-          position: relative;
-          width: 12px;
-          height: 12px;
-          border-radius: 50%;
-          background: var(--red-bright);
-          box-shadow: 0 0 8px 2px var(--glow), 0 0 26px 6px rgba(255, 59, 59, 0.45),
-            0 0 60px 14px rgba(255, 59, 59, 0.22);
-          animation: aura-breathe 3.4s ease-in-out infinite;
         }
 
         .aura-root .wordmark {
@@ -286,7 +403,7 @@ export default function Home() {
         }
 
         .aura-root .panel {
-          margin-top: 50px;
+          margin-top: 44px;
           width: min(380px, 100%);
           display: flex;
           flex-direction: column;
@@ -354,15 +471,6 @@ export default function Home() {
           color: #34343a;
         }
 
-        @keyframes aura-sonar {
-          0% { transform: translate(-50%, -50%) scale(1); opacity: 0.85; }
-          80% { opacity: 0; }
-          100% { transform: translate(-50%, -50%) scale(6.2); opacity: 0; }
-        }
-        @keyframes aura-breathe {
-          0%, 100% { transform: scale(1); opacity: 1; }
-          50% { transform: scale(1.18); opacity: 0.85; }
-        }
         @keyframes aura-blink {
           0%, 100% { opacity: 1; }
           50% { opacity: 0.3; }
@@ -373,11 +481,11 @@ export default function Home() {
         }
 
         @media (prefers-reduced-motion: reduce) {
-          .aura-root * { animation: none !important; transition: none !important; }
+          .aura-root *, .aura-root .core-canvas { animation: none !important; transition: none !important; }
         }
         @media (max-width: 520px) {
           .aura-root .tagline { letter-spacing: 0.22em; font-size: 11px; }
-          .aura-root .panel { margin-top: 40px; }
+          .aura-root .panel { margin-top: 36px; }
         }
       `}</style>
     </main>
