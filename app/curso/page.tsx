@@ -394,7 +394,7 @@ export default function SeleccionCurso() {
       {confirmar && confirmar !== "__premium__" && (
         <div className="overlay" onClick={() => !guardando && setConfirmar(null)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <span className="modal-ico">🎓</span>
+            <span className="modal-ico"><svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg></span>
             <h2 className="modal-title">¿Elegir {confirmar} como tu curso gratis?</h2>
             <p className="modal-text">
               Con el plan free solo puedes tener <b>1 curso</b>. Este quedará como tu
@@ -419,7 +419,7 @@ export default function SeleccionCurso() {
       {confirmar === "__premium__" && (
         <div className="overlay" onClick={() => setConfirmar(null)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <span className="modal-ico">🔒</span>
+            <span className="modal-ico"><svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
             <h2 className="modal-title">Este curso es Premium</h2>
             <p className="modal-text">
               Tu plan free incluye 1 curso. Para desbloquear todos tus cursos, pásate a
@@ -445,7 +445,7 @@ export default function SeleccionCurso() {
       {verCarreras && (
         <div className="overlay" onClick={() => !guardando && setVerCarreras(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <span className="modal-ico">🎓</span>
+            <span className="modal-ico"><svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg></span>
             <h2 className="modal-title">Elige tu carrera</h2>
             <p className="modal-text">Verás los cursos de la carrera que elijas.</p>
 
@@ -481,7 +481,7 @@ export default function SeleccionCurso() {
       {confirmarSalir && (
         <div className="overlay" onClick={() => setConfirmarSalir(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <span className="modal-ico">🚪</span>
+            <span className="modal-ico"><svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></span>
             <h2 className="modal-title">¿Cerrar sesión?</h2>
             <p className="modal-text">Tendrás que volver a iniciar sesión con Google.</p>
             <div className="modal-btns">

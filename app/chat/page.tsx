@@ -50,13 +50,13 @@ export default function Chat() {
   const [menuAdjuntos, setMenuAdjuntos] = useState(false);
   const [selectedHistory, setSelectedHistory] = useState<number | null>(null);
   const [histOpen, setHistOpen] = useState(false);
-  const [docError, setDocError] = useState(""); // aviso bonito en vez de alert()
+  const [docError, setDocError] = useState("");
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
-  const menuAbiertoRef = useRef(false); // para el listener sin re-registrar (I2)
+  const menuAbiertoRef = useRef(false);
 
   useEffect(() => {
     let mounted = true;
@@ -98,7 +98,6 @@ export default function Chat() {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [msgs, loading]);
 
-  // ARREGLO I2: el listener se registra UNA vez; usa la ref para saber si el menú está abierto.
   useEffect(() => {
     menuAbiertoRef.current = menuAdjuntos;
   }, [menuAdjuntos]);
@@ -248,12 +247,26 @@ export default function Chat() {
   if (!lista) {
     return (
       <main className={`aura-chat ${grotesk.variable} ${inter.variable}`}>
-        <div className="loading-screen">Cargando…</div>
+        <div className="loading-screen">
+          <span className="ls-core" />
+          <span className="ls-text">Cargando AURA…</span>
+        </div>
         <style jsx global>{`
           body { background: #070708; }
           .aura-chat .loading-screen {
-            min-height: 100vh; display: grid; place-items: center;
+            min-height: 100vh; display: flex; flex-direction: column; gap: 16px;
+            align-items: center; justify-content: center;
             color: #7a7a83; background: #070708; font-family: sans-serif;
+          }
+          .aura-chat .ls-core {
+            width: 14px; height: 14px; border-radius: 50%;
+            background: #ff5c5c; box-shadow: 0 0 16px 3px rgba(255,59,59,0.5);
+            animation: ls-pulse 1.5s ease-in-out infinite;
+          }
+          .aura-chat .ls-text { font-size: 13px; letter-spacing: 0.05em; }
+          @keyframes ls-pulse {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.4); opacity: 0.6; }
           }
         `}</style>
       </main>
@@ -327,6 +340,10 @@ export default function Chat() {
           <div className="thread">
             {vacio && (
               <div className="empty">
+                <span className="empty-core" aria-hidden="true">
+                  <span className="ec-ring" />
+                  <span className="ec-dot" />
+                </span>
                 <h2 className="greeting">
                   Hola{nombre ? `, ${nombre}` : ""} <span role="img" aria-label="saludo">👋</span>
                 </h2>
@@ -334,8 +351,13 @@ export default function Chat() {
                   Pregúntame lo que quieras de <b>{curso}</b>. Respondo solo con su material.
                 </p>
                 <div className="sugs">
-                  {SUGERENCIAS.map((s) => (
-                    <button key={s} className="sug" onClick={() => enviar(s)}>
+                  {SUGERENCIAS.map((s, idx) => (
+                    <button
+                      key={s}
+                      className="sug"
+                      onClick={() => enviar(s)}
+                      style={{ animationDelay: `${0.3 + idx * 0.08}s` }}
+                    >
                       {s}
                     </button>
                   ))}
@@ -348,7 +370,10 @@ export default function Chat() {
                 {m.rol === "aura" && <span className={`avatar ${m.error ? "err" : ""}`} />}
                 <div className={`bubble ${m.rol} ${m.error ? "err" : ""}`}>
                   {m.rol === "user" && m.adjunto && (
-                    <div className="msg-adjunto">📄 {m.adjunto}</div>
+                    <div className="msg-adjunto">
+                      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+                      {m.adjunto}
+                    </div>
                   )}
                   {m.rol === "aura" ? (
                     <div className="md">
@@ -398,7 +423,8 @@ export default function Chat() {
                       <span className="fuentes-label">Fuentes</span>
                       {m.fuentes.map((f, j) => (
                         <span key={j} className="fuente">
-                          📄 {f.archivo}
+                          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+                          {f.archivo}
                         </span>
                       ))}
                     </div>
@@ -421,7 +447,6 @@ export default function Chat() {
         </div>
 
         <div className="composer">
-          {/* ARREGLO I1: aviso bonito en vez de alert() */}
           {docError && <p className="doc-error">{docError}</p>}
 
           <div className="bar">
@@ -431,18 +456,23 @@ export default function Chat() {
                 onClick={() => setMenuAdjuntos(!menuAdjuntos)}
                 aria-label="Adjuntar archivo"
               >
-                +
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14"/></svg>
               </button>
 
               <div className="attach-menu">
                 {docNombre && (
                   <div className="adjunto-chip">
-                    <span className="ac-ico">📄</span>
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
                     <span className="ac-name">{docNombre}</span>
                     <button className="ac-x" onClick={quitarAdjunto} aria-label="Quitar archivo">✕</button>
                   </div>
                 )}
-                {subiendo && <div className="adjunto-chip leyendo">📄 Leyendo…</div>}
+                {subiendo && (
+                  <div className="adjunto-chip leyendo">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+                    Leyendo…
+                  </div>
+                )}
 
                 <div className="menu-opts">
                   <input
@@ -457,7 +487,9 @@ export default function Chat() {
                     onClick={() => fileRef.current?.click()}
                     disabled={subiendo}
                   >
-                    <span className="opt-ico">📄</span>
+                    <span className="opt-ico">
+                      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+                    </span>
                     <span className="opt-body">
                       <span className="opt-title">Subir PDF o Word</span>
                       <span className="opt-desc">Pregunta sobre tu documento</span>
@@ -472,7 +504,9 @@ export default function Chat() {
                       setTimeout(() => setImgAviso(false), 2600);
                     }}
                   >
-                    <span className="opt-ico">🖼️</span>
+                    <span className="opt-ico">
+                      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/></svg>
+                    </span>
                     <span className="opt-body">
                       <span className="opt-title">Subir imagen</span>
                       <span className="opt-desc">Foto de tu ejercicio</span>
@@ -498,12 +532,12 @@ export default function Chat() {
               disabled={loading || (!input.trim() && !docTexto)}
               aria-label="Enviar"
             >
-              →
+              <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
             </button>
           </div>
 
           {imgAviso && (
-            <p className="img-aviso">🖼️ Subir imágenes estará disponible muy pronto ✨</p>
+            <p className="img-aviso">Subir imágenes estará disponible muy pronto ✨</p>
           )}
           <p className="disclaimer">AURA puede equivocarse. Verifica con tu material.</p>
         </div>
@@ -558,6 +592,7 @@ export default function Chat() {
         }
         .aura-chat .hp-new:hover {
           border-color: rgba(255, 59, 59, 0.4); background: rgba(255, 59, 59, 0.06);
+          transform: translateY(-1px);
         }
         .aura-chat .hp-new-ico { font-size: 17px; line-height: 1; color: var(--red); }
 
@@ -585,8 +620,10 @@ export default function Chat() {
         .aura-chat .hp-item.active { background: rgba(255, 59, 59, 0.08); color: var(--text); }
         .aura-chat .hp-item-dot {
           flex: none; width: 5px; height: 5px; border-radius: 50%; background: var(--faint);
+          transition: all 0.15s ease;
         }
-        .aura-chat .hp-item.active .hp-item-dot { background: var(--red); }
+        .aura-chat .hp-item:hover .hp-item-dot { background: var(--muted); }
+        .aura-chat .hp-item.active .hp-item-dot { background: var(--red); box-shadow: 0 0 8px 1px var(--glow); }
         .aura-chat .hp-item-text { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .aura-chat .hp-foot { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
         .aura-chat .hp-curso {
@@ -599,6 +636,7 @@ export default function Chat() {
           position: relative; z-index: 2;
           display: flex; align-items: center; justify-content: space-between;
           padding: 14px 20px; border-bottom: 1px solid var(--line);
+          background: rgba(7, 7, 8, 0.5); backdrop-filter: blur(8px);
         }
         .aura-chat .bar-left { display: flex; align-items: center; gap: 12px; }
         .aura-chat .hamburger {
@@ -606,7 +644,9 @@ export default function Chat() {
           flex-direction: column; gap: 4px; width: 34px; height: 34px;
           border: 1px solid var(--line); border-radius: 9px; background: none;
           cursor: pointer; padding: 0; align-items: center; justify-content: center;
+          transition: all 0.2s ease;
         }
+        .aura-chat .hamburger:hover { border-color: rgba(255, 59, 59, 0.4); }
         .aura-chat .hamburger span {
           display: block; width: 16px; height: 2px; border-radius: 2px; background: var(--text);
         }
@@ -629,38 +669,70 @@ export default function Chat() {
           padding: 6px 13px; background: rgba(255, 255, 255, 0.015);
         }
 
-        .aura-chat .scroll { position: relative; z-index: 1; flex: 1; overflow-y: auto; }
+        .aura-chat .scroll { position: relative; z-index: 1; flex: 1; overflow-y: auto; scroll-behavior: smooth; }
+        .aura-chat .scroll::-webkit-scrollbar { width: 8px; }
+        .aura-chat .scroll::-webkit-scrollbar-track { background: transparent; }
+        .aura-chat .scroll::-webkit-scrollbar-thumb {
+          background: rgba(255, 255, 255, 0.08); border-radius: 4px;
+          border: 2px solid transparent; background-clip: padding-box;
+        }
+        .aura-chat .scroll::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.16); background-clip: padding-box; }
         .aura-chat .thread {
           max-width: 760px; margin: 0 auto; padding: 28px 20px 16px;
-          display: flex; flex-direction: column; gap: 18px;
+          display: flex; flex-direction: column; gap: 20px;
         }
 
-        .aura-chat .empty { margin: auto; text-align: center; padding: 7vh 0; }
+        .aura-chat .empty { margin: auto; text-align: center; padding: 6vh 0; }
+        .aura-chat .empty-core {
+          position: relative; display: inline-grid; place-items: center;
+          width: 54px; height: 54px; margin-bottom: 20px;
+          animation: chat-rise 0.7s ease both;
+        }
+        .aura-chat .empty-core .ec-ring {
+          position: absolute; inset: 0; border-radius: 50%;
+          border: 1px solid rgba(255, 59, 59, 0.3);
+        }
+        .aura-chat .empty-core .ec-dot {
+          width: 14px; height: 14px; border-radius: 50%;
+          background: radial-gradient(circle at 40% 35%, #ff8080, var(--red) 60%);
+          box-shadow: 0 0 16px 3px var(--glow), 0 0 36px 8px rgba(255, 59, 59, 0.25);
+          animation: chat-breathe 3.2s ease-in-out infinite;
+        }
         .aura-chat .greeting {
           font-family: var(--font-grotesk), sans-serif; font-weight: 600;
           font-size: 28px; margin: 0 0 10px; color: #f4f4f6;
+          animation: chat-rise 0.7s ease 0.08s both;
         }
-        .aura-chat .sub { color: var(--muted); font-size: 14.5px; margin: 0 0 26px; }
+        .aura-chat .sub {
+          color: var(--muted); font-size: 14.5px; margin: 0 0 26px;
+          animation: chat-rise 0.7s ease 0.16s both;
+        }
         .aura-chat .sub b { color: var(--text); }
         .aura-chat .sugs { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
         .aura-chat .sug {
           font-size: 13.5px; color: var(--text);
           border: 1px solid var(--line); border-radius: 12px;
           padding: 11px 16px; background: var(--glass); cursor: pointer; transition: all 0.2s ease;
+          animation: chat-rise 0.6s ease both;
         }
-        .aura-chat .sug:hover { border-color: rgba(255, 59, 59, 0.4); background: rgba(255, 59, 59, 0.05); }
+        .aura-chat .sug:hover {
+          border-color: rgba(255, 59, 59, 0.4); background: rgba(255, 59, 59, 0.05);
+          transform: translateY(-2px);
+        }
 
-        .aura-chat .row { display: flex; gap: 11px; align-items: flex-start; }
+        .aura-chat .row { display: flex; gap: 11px; align-items: flex-start; animation: msg-in 0.4s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
         .aura-chat .row.user { justify-content: flex-end; }
         .aura-chat .avatar {
           flex: none; width: 26px; height: 26px; border-radius: 50%; margin-top: 3px;
-          background: radial-gradient(circle, var(--red-bright) 0%, var(--red) 45%, rgba(255, 59, 59, 0.15) 100%);
+          position: relative;
+          background: radial-gradient(circle at 40% 35%, var(--red-bright) 0%, var(--red) 50%, rgba(255, 59, 59, 0.15) 100%);
           box-shadow: 0 0 14px -2px var(--glow);
+          animation: chat-breathe 3.4s ease-in-out infinite;
         }
-        .aura-chat .avatar.err { background: #3a1414; box-shadow: none; }
+        .aura-chat .avatar.err { background: #3a1414; box-shadow: none; animation: none; }
         .aura-chat .bubble {
-          max-width: 80%; padding: 13px 16px; border-radius: 16px;
-          font-size: 15px; line-height: 1.65; word-wrap: break-word; overflow-x: auto;
+          max-width: 80%; padding: 13px 17px; border-radius: 16px;
+          font-size: 15px; line-height: 1.68; word-wrap: break-word; overflow-x: auto;
         }
         .aura-chat .bubble.user {
           background: #1a1a1e; border: 1px solid var(--line);
@@ -677,7 +749,7 @@ export default function Chat() {
         .aura-chat .msg-adjunto {
           font-size: 12px; color: var(--muted);
           background: rgba(255, 255, 255, 0.05); border-radius: 8px;
-          padding: 5px 9px; margin-bottom: 8px; display: inline-block;
+          padding: 5px 9px; margin-bottom: 8px; display: inline-flex; align-items: center; gap: 6px;
         }
 
         .aura-chat .md p { margin: 0 0 10px; }
@@ -708,12 +780,13 @@ export default function Chat() {
           font-size: 11.5px; color: var(--muted);
           background: rgba(255, 255, 255, 0.03); border: 1px solid var(--line);
           border-radius: 8px; padding: 4px 9px;
+          display: inline-flex; align-items: center; gap: 5px;
         }
 
-        .aura-chat .typing { display: flex; gap: 5px; align-items: center; }
+        .aura-chat .typing { display: flex; gap: 5px; align-items: center; padding: 15px 17px; }
         .aura-chat .typing .d {
           width: 7px; height: 7px; border-radius: 50%; background: var(--muted);
-          animation: chat-bounce 1.2s ease-in-out infinite;
+          animation: chat-bounce 1.3s ease-in-out infinite;
         }
         .aura-chat .typing .d:nth-child(2) { animation-delay: 0.18s; }
         .aura-chat .typing .d:nth-child(3) { animation-delay: 0.36s; }
@@ -743,7 +816,7 @@ export default function Chat() {
         .aura-chat .plus-btn {
           width: 38px; height: 38px; border-radius: 10px;
           border: 1px solid var(--line); background: none; color: var(--muted);
-          font-size: 24px; line-height: 1; cursor: pointer;
+          cursor: pointer;
           display: grid; place-items: center; transition: all 0.2s ease;
         }
         .aura-chat .plus-btn:hover { border-color: rgba(255, 59, 59, 0.4); background: rgba(255, 59, 59, 0.05); color: var(--text); }
@@ -770,7 +843,8 @@ export default function Chat() {
         }
         .aura-chat .opt-btn:hover:not(.img-soon) { background: rgba(255, 255, 255, 0.05); }
         .aura-chat .opt-btn:disabled { opacity: 0.5; cursor: default; }
-        .aura-chat .opt-ico { font-size: 20px; flex: none; }
+        .aura-chat .opt-ico { flex: none; display: grid; place-items: center; color: var(--red-bright); }
+        .aura-chat .opt-btn.img-soon .opt-ico { color: var(--muted); }
         .aura-chat .opt-body { flex: 1; display: flex; flex-direction: column; gap: 1px; }
         .aura-chat .opt-title { font-size: 14px; font-weight: 500; }
         .aura-chat .opt-desc { font-size: 12px; color: var(--muted); }
@@ -799,7 +873,7 @@ export default function Chat() {
         .aura-chat .bar input::placeholder { color: var(--faint); }
         .aura-chat .go {
           flex: none; width: 42px; height: 42px; border-radius: 11px; border: 0;
-          cursor: pointer; background: var(--red); color: #fff; font-size: 19px;
+          cursor: pointer; background: var(--red); color: #fff;
           display: grid; place-items: center;
           transition: transform 0.15s ease, background 0.2s ease;
           box-shadow: 0 0 20px -4px var(--glow);
@@ -817,13 +891,21 @@ export default function Chat() {
 
         @keyframes chat-breathe {
           0%, 100% { transform: scale(1); opacity: 1; }
-          50% { transform: scale(1.25); opacity: 0.8; }
+          50% { transform: scale(1.18); opacity: 0.82; }
         }
         @keyframes chat-bounce {
           0%, 60%, 100% { transform: translateY(0); opacity: 0.5; }
           30% { transform: translateY(-5px); opacity: 1; }
         }
         @keyframes chat-fade { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes chat-rise {
+          from { opacity: 0; transform: translateY(14px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes msg-in {
+          from { opacity: 0; transform: translateY(10px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
         @media (prefers-reduced-motion: reduce) {
           .aura-chat * { animation: none !important; transition: none !important; }
         }
