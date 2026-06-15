@@ -108,7 +108,7 @@ export default function SeleccionCarrera() {
 
       <div className="content">
         <p className="hi">
-          Hola{nombre ? `, ${nombre}` : ""} <span className="wave">👋</span>
+          Hola{nombre ? `, ${nombre}` : ""} <span className="wave"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2"/><path d="M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2"/><path d="M10 10.5V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></svg></span>
         </p>
         <h1 className="title">¿Qué carrera estudias?</h1>
         <p className="sub">Elige tu carrera. Solo te lo preguntaremos una vez.</p>
@@ -129,7 +129,7 @@ export default function SeleccionCarrera() {
           <div className="grid">
             {carreras.map((c) => (
               <button key={c} className="card" onClick={() => elegir(c)}>
-                <span className="card-ico">🎓</span>
+                <span className="card-ico"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg></span>
                 <span className="card-name">{c}</span>
                 <span className="card-arrow">→</span>
               </button>
