@@ -358,12 +358,29 @@ export default function SeleccionCurso() {
                 >
                   <div className="card-top">
                     <span className={`card-ico ${lock ? "locked" : ""}`}>
-                      {lock ? "🔒" : "📘"}
+                      {lock ? (
+                        <svg viewBox="0 0 24 24" width="20" height="20" fill="none"
+                          stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <rect x="3" y="11" width="18" height="11" rx="2" />
+                          <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                        </svg>
+                      ) : (
+                        <svg viewBox="0 0 24 24" width="20" height="20" fill="none"
+                          stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                          <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+                        </svg>
+                      )}
                     </span>
                     {lock ? (
                       <span className="card-tag">Premium</span>
                     ) : (
-                      <span className="card-arrow">→</span>
+                      <span className="card-arrow">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none"
+                          stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M5 12h14M13 6l6 6-6 6" />
+                        </svg>
+                      </span>
                     )}
                   </div>
                   <span className="card-name">{c}</span>
