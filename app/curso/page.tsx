@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Space_Grotesk, Inter } from "next/font/google";
 import { supabase } from "@/lib/supabase";
@@ -34,20 +34,21 @@ export default function SeleccionCurso() {
   const [error, setError] = useState(false);
   const [confirmar, setConfirmar] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
+  const [busqueda, setBusqueda] = useState("");
 
-  // Menú de la tuerca (dropdown)
   const [menuOpen, setMenuOpen] = useState(false);
   const [nombre, setNombre] = useState("");
   const menuRef = useRef<HTMLDivElement>(null);
 
-  // Cambiar carrera (dentro del menú)
   const [verCarreras, setVerCarreras] = useState(false);
   const [carreras, setCarreras] = useState<string[]>([]);
   const [cargandoCarreras, setCargandoCarreras] = useState(false);
   const [confirmarSalir, setConfirmarSalir] = useState(false);
 
   useEffect(() => {
+    let mounted = true;
     supabase.auth.getSession().then(async ({ data }) => {
+      if (!mounted) return;
       const session = data.session;
       if (!session) {
         router.replace("/");
@@ -77,7 +78,9 @@ export default function SeleccionCurso() {
       if (!car) {
         try {
           car = sessionStorage.getItem("aura_carrera") || "";
-        } catch {}
+        } catch (e) {
+          console.error(e);
+        }
       }
       if (!car) {
         router.replace("/carrera");
@@ -91,14 +94,17 @@ export default function SeleccionCurso() {
           setCursos(d.cursos || []);
           setLoading(false);
         })
-        .catch(() => {
+        .catch((e) => {
+          console.error(e);
           setError(true);
           setLoading(false);
         });
     });
+    return () => {
+      mounted = false;
+    };
   }, [router]);
 
-  // Cerrar el menú al hacer clic afuera
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
@@ -121,7 +127,9 @@ export default function SeleccionCurso() {
     try {
       sessionStorage.setItem("aura_carrera", carrera);
       sessionStorage.setItem("aura_curso", curso);
-    } catch {}
+    } catch (e) {
+      console.error(e);
+    }
     router.push("/chat");
   };
 
@@ -155,7 +163,6 @@ export default function SeleccionCurso() {
     entrarACurso(elegido);
   };
 
-  // --- Acciones del menú ---
   const abrirCambiarCarrera = () => {
     setMenuOpen(false);
     setVerCarreras(true);
@@ -167,7 +174,10 @@ export default function SeleccionCurso() {
           setCarreras(d.carreras || []);
           setCargandoCarreras(false);
         })
-        .catch(() => setCargandoCarreras(false));
+        .catch((e) => {
+          console.error(e);
+          setCargandoCarreras(false);
+        });
     }
   };
 
@@ -180,10 +190,12 @@ export default function SeleccionCurso() {
       .eq("id", perfil.id);
     try {
       sessionStorage.setItem("aura_carrera", nuevaCarrera);
-    } catch {}
+    } catch (e) {
+      console.error(e);
+    }
     setPerfil({ ...perfil, carrera: nuevaCarrera });
     setCarrera(nuevaCarrera);
-    // recargar cursos de la nueva carrera
+    setBusqueda("");
     setLoading(true);
     fetch(`${API}/cursos?carrera=${encodeURIComponent(nuevaCarrera)}`)
       .then((r) => r.json())
@@ -191,7 +203,8 @@ export default function SeleccionCurso() {
         setCursos(d.cursos || []);
         setLoading(false);
       })
-      .catch(() => {
+      .catch((e) => {
+        console.error(e);
         setError(true);
         setLoading(false);
       });
@@ -204,13 +217,22 @@ export default function SeleccionCurso() {
     router.replace("/");
   };
 
+  const normalizar = (s: string) =>
+    s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+  const cursosFiltrados = useMemo(() => {
+    const q = normalizar(busqueda.trim());
+    if (!q) return cursos;
+    return cursos.filter((c) => normalizar(c).includes(q));
+  }, [cursos, busqueda]);
+
   return (
     <main className={`aura-sel ${grotesk.variable} ${inter.variable}`}>
       <div className="bg-glow" />
       <div className="vignette" />
 
       <header className="topbar">
-        <button className="brand" onClick={() => router.push("/curso")}>
+        <button className="brand" onClick={() => router.push("/curso")} aria-label="Inicio">
           <span className="mini-radar">
             <span className="mini-ring" />
             <span className="mini-core" />
@@ -224,7 +246,6 @@ export default function SeleccionCurso() {
             {carrera ? <span className="pill-carrera">{carrera}</span> : null}
           </span>
 
-          {/* Tuerca + menú desplegable */}
           <div className="config-wrap" ref={menuRef}>
             <button
               className={`config-btn ${menuOpen ? "active" : ""}`}
@@ -289,11 +310,31 @@ export default function SeleccionCurso() {
             : "Con el plan free eliges 1 curso gratis."}
         </p>
 
+        {!loading && !error && cursos.length > 0 && (
+          <div className="search-wrap">
+            <span className="search-ico">🔍</span>
+            <input
+              type="text"
+              className="search-input"
+              placeholder="Busca tu curso…"
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+              autoComplete="off"
+            />
+            {busqueda && (
+              <button className="search-clear" onClick={() => setBusqueda("")} aria-label="Limpiar">
+                ✕
+              </button>
+            )}
+          </div>
+        )}
+
         {loading && <div className="state">Cargando cursos…</div>}
 
         {error && (
           <div className="state err">
-            No pude conectar con el servidor. ¿Está prendido el backend en {API}?
+            No pude conectar con el servidor. Si es la primera vez en un rato, puede tardar
+            unos segundos en despertar. Recarga e intenta de nuevo.
           </div>
         )}
 
@@ -301,9 +342,13 @@ export default function SeleccionCurso() {
           <div className="state">Aún no hay cursos en esta carrera.</div>
         )}
 
-        {!loading && !error && cursos.length > 0 && (
+        {!loading && !error && cursos.length > 0 && cursosFiltrados.length === 0 && (
+          <div className="state">No se encontró ningún curso con “{busqueda}”.</div>
+        )}
+
+        {!loading && !error && cursosFiltrados.length > 0 && (
           <div className="grid">
-            {cursos.map((c) => {
+            {cursosFiltrados.map((c) => {
               const lock = bloqueado(c);
               return (
                 <button
@@ -311,13 +356,17 @@ export default function SeleccionCurso() {
                   className={`card ${lock ? "locked" : ""}`}
                   onClick={() => clickCurso(c)}
                 >
-                  <span className="card-ico">{lock ? "🔒" : "📘"}</span>
+                  <div className="card-top">
+                    <span className={`card-ico ${lock ? "locked" : ""}`}>
+                      {lock ? "🔒" : "📘"}
+                    </span>
+                    {lock ? (
+                      <span className="card-tag">Premium</span>
+                    ) : (
+                      <span className="card-arrow">→</span>
+                    )}
+                  </div>
                   <span className="card-name">{c}</span>
-                  {lock ? (
-                    <span className="card-tag">Premium</span>
-                  ) : (
-                    <span className="card-arrow">→</span>
-                  )}
                 </button>
               );
             })}
@@ -325,7 +374,6 @@ export default function SeleccionCurso() {
         )}
       </div>
 
-      {/* Modal confirmar curso free */}
       {confirmar && confirmar !== "__premium__" && (
         <div className="overlay" onClick={() => !guardando && setConfirmar(null)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
@@ -351,7 +399,6 @@ export default function SeleccionCurso() {
         </div>
       )}
 
-      {/* Modal Premium */}
       {confirmar === "__premium__" && (
         <div className="overlay" onClick={() => setConfirmar(null)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
@@ -378,7 +425,6 @@ export default function SeleccionCurso() {
         </div>
       )}
 
-      {/* Modal cambiar carrera */}
       {verCarreras && (
         <div className="overlay" onClick={() => !guardando && setVerCarreras(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
@@ -415,7 +461,6 @@ export default function SeleccionCurso() {
         </div>
       )}
 
-      {/* Modal cerrar sesión */}
       {confirmarSalir && (
         <div className="overlay" onClick={() => setConfirmarSalir(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
@@ -507,7 +552,6 @@ export default function SeleccionCurso() {
           max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
         }
 
-        /* Tuerca + menú */
         .aura-sel .config-wrap { position: relative; }
         .aura-sel .config-btn {
           background: none; border: 1px solid var(--line);
@@ -560,7 +604,7 @@ export default function SeleccionCurso() {
 
         .aura-sel .content {
           position: relative; z-index: 1;
-          max-width: 640px; margin: 0 auto; padding: 7vh 24px 60px; text-align: center;
+          max-width: 820px; margin: 0 auto; padding: 6vh 24px 60px; text-align: center;
         }
         .aura-sel .title {
           font-family: var(--font-grotesk), sans-serif; font-weight: 600;
@@ -568,7 +612,7 @@ export default function SeleccionCurso() {
           animation: sel-rise 0.7s ease 0.05s both;
         }
         .aura-sel .sub {
-          color: var(--muted); font-size: 14.5px; margin: 0 0 34px;
+          color: var(--muted); font-size: 14.5px; margin: 0 0 28px;
           animation: sel-rise 0.7s ease 0.1s both;
         }
         .aura-sel .state { margin-top: 30px; color: var(--muted); font-size: 14.5px; }
@@ -577,37 +621,76 @@ export default function SeleccionCurso() {
           border: 1px solid rgba(255, 59, 59, 0.3); border-radius: 12px; padding: 16px;
         }
 
+        .aura-sel .search-wrap {
+          position: relative; max-width: 460px; margin: 0 auto 28px;
+          animation: sel-rise 0.7s ease 0.12s both;
+        }
+        .aura-sel .search-ico {
+          position: absolute; left: 15px; top: 50%; transform: translateY(-50%);
+          font-size: 15px; opacity: 0.6; pointer-events: none;
+        }
+        .aura-sel .search-input {
+          width: 100%; box-sizing: border-box;
+          background: var(--glass); border: 1px solid var(--line);
+          border-radius: 13px; padding: 14px 16px 14px 44px;
+          color: var(--text); font-size: 15px; font-family: var(--font-inter), sans-serif;
+          outline: none; transition: all 0.2s ease;
+        }
+        .aura-sel .search-input::placeholder { color: var(--faint); }
+        .aura-sel .search-input:focus {
+          border-color: rgba(255, 59, 59, 0.5); background: rgba(255, 59, 59, 0.04);
+          box-shadow: 0 0 0 1px rgba(255, 59, 59, 0.2), 0 0 30px -10px rgba(255, 59, 59, 0.4);
+        }
+        .aura-sel .search-clear {
+          position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+          background: none; border: 0; color: var(--muted); cursor: pointer;
+          font-size: 13px; padding: 4px 6px;
+        }
+        .aura-sel .search-clear:hover { color: var(--text); }
+
         .aura-sel .grid {
-          display: flex; flex-direction: column; gap: 12px;
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+          gap: 13px;
           animation: sel-rise 0.7s ease 0.15s both;
         }
         .aura-sel .card {
-          display: flex; align-items: center; gap: 15px;
-          padding: 20px 22px; border-radius: 16px;
+          display: flex; flex-direction: column; gap: 14px;
+          padding: 18px 18px 20px; border-radius: 16px;
           border: 1px solid var(--line); background: var(--glass);
           color: var(--text); font-family: var(--font-inter), sans-serif;
-          font-size: 16px; font-weight: 500; cursor: pointer; text-align: left;
-          transition: all 0.2s ease;
+          cursor: pointer; text-align: left;
+          transition: all 0.2s ease; min-height: 96px;
         }
         .aura-sel .card:hover {
           border-color: rgba(255, 59, 59, 0.5); background: rgba(255, 59, 59, 0.05);
           transform: translateY(-2px); box-shadow: 0 8px 30px -12px rgba(255, 59, 59, 0.5);
         }
-        .aura-sel .card.locked { opacity: 0.55; }
+        .aura-sel .card.locked { opacity: 0.6; }
         .aura-sel .card.locked:hover {
           border-color: rgba(255, 212, 121, 0.4); background: rgba(255, 212, 121, 0.05);
           box-shadow: none;
         }
-        .aura-sel .card-ico { font-size: 22px; }
-        .aura-sel .card-name { flex: 1; }
+        .aura-sel .card-top {
+          display: flex; align-items: center; justify-content: space-between;
+        }
+        .aura-sel .card-ico {
+          width: 40px; height: 40px; border-radius: 11px;
+          background: rgba(255, 59, 59, 0.1); display: grid; place-items: center;
+          font-size: 19px;
+        }
+        .aura-sel .card-ico.locked { background: rgba(255, 212, 121, 0.1); }
+        .aura-sel .card-name {
+          font-size: 15px; font-weight: 500; line-height: 1.35; color: #f4f4f6;
+        }
         .aura-sel .card-arrow {
-          color: var(--red); font-size: 20px; opacity: 0;
+          color: var(--red); font-size: 19px; opacity: 0;
           transform: translateX(-6px); transition: all 0.2s ease;
         }
         .aura-sel .card:hover .card-arrow { opacity: 1; transform: translateX(0); }
         .aura-sel .card-tag {
-          font-size: 11.5px; font-weight: 600; color: #ffd479;
-          border: 1px solid rgba(255, 212, 121, 0.4); border-radius: 999px; padding: 4px 11px;
+          font-size: 11px; font-weight: 600; color: #ffd479;
+          border: 1px solid rgba(255, 212, 121, 0.4); border-radius: 999px; padding: 4px 10px;
         }
 
         .aura-sel .overlay {
@@ -695,6 +778,7 @@ export default function SeleccionCurso() {
         }
         @media (max-width: 520px) {
           .aura-sel .pill-carrera { max-width: 90px; }
+          .aura-sel .grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
         }
       `}</style>
     </main>
